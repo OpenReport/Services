@@ -1,9 +1,14 @@
 Services
 ========
 
-API Services for Open Report
+API Services for Open Report Access
 
 
+
+Dependencies
+============
+http://www.slimframework.com
+http://www.phpactiverecord.org/
 
 
 License
