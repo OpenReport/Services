@@ -1,1 +1,11 @@
-/home/jr-hull/Projects/OpenFieldReport/Services/.htaccess
+
+# Turn on URL rewriting
+RewriteEngine On
+
+# Installation directory
+RewriteBase /
+
+# Rewrite Service URIs
+RewriteCond %{REQUEST_FILENAME} !-f
+
+RewriteRule .* service.php/$0 [QSA,L]
