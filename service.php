@@ -65,7 +65,7 @@ $response = array('status'=>'ok', 'message'=>'', 'count'=>0, 'data'=>array());
 
 
 // return HTTP 200 for HTTP OPTIONS requests
-$app->map('/', function() {
+$app->map('/record/', function() {
     //http_response_code(200);
 })->via('OPTIONS');
 
@@ -188,17 +188,17 @@ $app->post('/record/', function () use ($app, $response) {
     // get the data
     $request = json_decode($app->request()->getBody());
 
-    // Validate calendar id
+    // Validate id
     //if($id == $request->form_id){
         // create the event
         $record = new Record();
         $record->api_key = $request->api_key;
         $record->form_id = $request->form_id;
         $record->meta = json_encode($request->meta);
-        //$record->record_date = $request->????;
-        //$record->user = $request->user;
-        //$record->lon = $request->lon;
-        //$record->lat = $request->lat;
+        $record->user = $request->user;
+        $record->record_date = $request->record_date;
+        $record->lon = $request->lon;
+        $record->lat = $request->lat;
         $record->save();
     //}
     // package the data
