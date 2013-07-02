@@ -15,12 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * @package		Open Report
- * @author		Open Report Dev Team
- * @copyright   Copyright (c) 2013, The Austin Conner Group.
- * @license		http://www.apache.org/licenses/LICENSE-2.0
- * @link		https://sites.google.com/site/openfieldreport/
- * @since		Version 1.0
  *
  */
 
@@ -30,8 +24,8 @@
  * Report Task Model
  */
 class Form extends ActiveRecord\Model {
-  static $table_name = 'forms';  // TODO CHANGE THIS IN DATA BASE
-
+  static $table_name = 'forms';
+  static $has_many = array(array('records', 'class'=>'Record'));
   public function get_meta(){
     return json_decode($this->read_attribute('meta'), true);
   }

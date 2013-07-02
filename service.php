@@ -161,7 +161,7 @@ $app->get("/form/:apiKey", function ($apiKey) use ($app, $response) {
     // get date
     $today = new DateTime('GMT');
     try {
-        $formData = Form::find('all', array('conditions'=>array('api_key = ?', $apiKey)));
+        $formData = Form::find('all', array('conditions'=>array('api_key = ? AND is_published = 1', $apiKey)));
         // package the data
         $response['data'] = formArrayMap($formData);
         $response['count'] = count($response['data']);

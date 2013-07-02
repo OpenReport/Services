@@ -15,12 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * @package		Open Report
- * @author		Open Report Dev Team
- * @copyright   Copyright (c) 2013, The Austin Conner Group.
- * @license		http://www.apache.org/licenses/LICENSE-2.0
- * @link		https://sites.google.com/site/openfieldreport/
- * @since		Version 1.0
  *
  */
 
@@ -31,7 +25,7 @@
  */
 class Record extends ActiveRecord\Model {
   static $table_name = 'records';
-
+  static $belongs_to = array(array('forms', 'class_name'=>'Form'));
   public function get_meta(){
     return json_decode($this->read_attribute('meta'), true);
   }
