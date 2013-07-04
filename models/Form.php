@@ -25,7 +25,7 @@
  */
 class Form extends ActiveRecord\Model {
   static $table_name = 'forms';
-  static $has_many = array(array('records', 'class'=>'Record'));
+  static $has_many = array(array('records', 'class'=>'Record'), array('assignments', 'class_name'=>'Assignment'));
   public function get_meta(){
     return json_decode($this->read_attribute('meta'), true);
   }

@@ -97,7 +97,7 @@ $app->post('/login', function() use($app, $response){
         echo json_encode($response);
         return;
     }
-    $response['data'] = array('apiKey'=>$authData->account->api_key,'username'=>$authData->username);
+    $response['data'] = array('apiKey'=>$authData->account->api_key,'username'=>$authData->username,'user_id'=>$authData->id);
     echo json_encode($response);
 });
 
@@ -212,6 +212,26 @@ $app->post('/record/', function () use ($app, $response) {
 
 
 /**
+ * Fetch all assignmets records for userId
+ *
+ * get: /assignments/{apiKey}/{userId}
+ *
+ */
+$app->get("/assignments/:apiKey/:userId", function ($apiKey, $userId) use ($app, $response) {
+
+    // get date
+    $today = new DateTime('GMT');
+    $data = Form::all(array('joins'=>'LEFT JOIN assignments ON(assignments.form_id = forms.id)', 'conditions'=>array('forms.api_key = ? AND assignments.user_id = ?', $apiKey, $userId)));
+    //var_dump($data);
+    // package the data
+    $response['data'] = formArrayMap($data);
+    $response['count'] = count($data);
+    // send the data
+    echo json_encode($response);
+
+});
+
+/**
  * Run the Slim application
  *
  * This method should be called last. This executes the Slim application
@@ -230,6 +250,16 @@ function formArrayMap($forms){
 function taskArrayMap($tasks){
 
    return array_map(create_function('$m','return $m->values_for(array(\'id\',\'title\',\'description\',\'date_created\'));'),$tasks);
+
+}
+/**
+ * Data conversion utilites
+ *
+ *
+ */
+function assignmentArrayMap($data){
+
+   return array_map(create_function('$m','return $m->values_for(array(\'id\',\'user_id\',\'form_id\',\'date_assigned\',\'is_active\'));'),$data);
 
 }
 function getColumns($data){
