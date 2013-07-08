@@ -39,6 +39,7 @@ require $_SERVER['DOCUMENT_ROOT'].'system/Slim/Slim.php';
 \Slim\Slim::registerAutoloader();
 
 $app = new \Slim\Slim();
+
 $app->add(new \Slim\Middleware\SessionCookie(array('secret' => 'Z54cN9Jf8nE6hqj9V0wAuoaldIQ=')));
 require $_SERVER['DOCUMENT_ROOT'].'system/ActiveRecord.php';
 ActiveRecord\Config::initialize(function($cfg) {
@@ -47,6 +48,12 @@ ActiveRecord\Config::initialize(function($cfg) {
         'development' => 'mysql://root:acg100199@localhost/meta_forms'
     ));
 });
+
+
+$app = new \Slim\Slim();
+\Slim\Route::setDefaultConditions(array(
+    'apiKey' => '[a-zA-Z0-9]{32}'
+));
 
 /**
  * Set the default content type
@@ -88,7 +95,7 @@ $app->post('/login', function() use($app, $response){
     // get the data
     $email = $app->request()->post('email');
     $password = $app->request()->post('password');
-    $authData = User::find('first', array('conditions'=>array('email=? AND password=?', $email, $password)));
+    $authData = User::find('first', array('conditions'=>array('email=? AND password=? AND is_active = 1', $email, $password)));
 
     if ($authData == NULL) {
         $response['status'] = "error";
@@ -103,7 +110,7 @@ $app->post('/login', function() use($app, $response){
 
 
 /**
- * Fetch all Reporting Tasks for apiKey
+ * Fetch all Public Reporting Forms for apiKey
  *
  * get: /task/{apiKey}
  *
@@ -151,7 +158,7 @@ $app->get('/form/:apiKey/:id', function ($apiKey, $id) use ($app, $response) {
 
 
 /**
- * Fetch all Report Forms for apiKey
+ * Fetch all Public Reporting Forms for apiKey
  *
  * get: /form/{apiKey}
  *
@@ -161,7 +168,7 @@ $app->get("/form/:apiKey", function ($apiKey) use ($app, $response) {
     // get date
     $today = new DateTime('GMT');
     try {
-        $formData = Form::find('all', array('conditions'=>array('api_key = ? AND is_published = 1', $apiKey)));
+        $formData = Form::find('all', array('conditions'=>array('api_key = ? AND is_published = 1 AND is_public = 1 AND is_deleted = 0', $apiKey)));
         // package the data
         $response['data'] = formArrayMap($formData);
         $response['count'] = count($response['data']);
@@ -212,7 +219,7 @@ $app->post('/record/', function () use ($app, $response) {
 
 
 /**
- * Fetch all assignmets records for userId
+ * Fetch all reporting assignmets records for userId
  *
  * get: /assignments/{apiKey}/{userId}
  *
@@ -221,7 +228,7 @@ $app->get("/assignments/:apiKey/:userId", function ($apiKey, $userId) use ($app,
 
     // get date
     $today = new DateTime('GMT');
-    $data = Form::all(array('joins'=>'LEFT JOIN assignments ON(assignments.form_id = forms.id)', 'conditions'=>array('forms.api_key = ? AND assignments.user_id = ?', $apiKey, $userId)));
+    $data = Form::all(array('joins'=>'LEFT JOIN assignments ON(assignments.form_id = forms.id)', 'conditions'=>array('forms.api_key = ? AND assignments.user_id = ? AND forms.is_published = 1 AND forms.is_deleted = 0', $apiKey, $userId)));
     //var_dump($data);
     // package the data
     $response['data'] = formArrayMap($data);
