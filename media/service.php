@@ -61,7 +61,7 @@ $app->hook('slim.after.router', function() use ($app) {
 
     $res = $app->response();
     $res['Content-Type'] = 'application/json';
-    $res['X-Powered-By'] = 'Open Reports';
+    $res['X-Powered-By'] = 'OpenReports';
 
 });
 
@@ -82,22 +82,56 @@ $app->map('/upload/:apiKey', function() {
  */
 $app->get('/', function () use($app, $response)  {
 
-    $response['message'] = 'Open Report v1.0';
+    $response['message'] = 'OpenReport v1.0';
     echo json_encode($response);
 
 });
 
-$app->post('/upload/:apiKey', function () use($app, $response)  {
-    // get the data
-    $request = json_decode($app->request()->getBody());
 
-    if (!isset($_FILES[$request->upload])) {
-        $response['message'] = "No file specify (".$request->upload.")";
+
+/**
+ *
+ *
+ *
+ */
+$app->post('/upload/:apiKey', function ($apiKey) use($app, $response)  {
+
+
+
+    if (!isset($_FILES['images'])) {
+        $response['message'] = "No file specify ";
         echo json_encode($response);
         return;
     }
 
+    // build path for media files
+    $path = 'media/data/'.$apiKey.'/'.date('Y/m').'/';
+    $uploadPath = $_SERVER['DOCUMENT_ROOT'].$path;
 
+    // catch new directories
+    if(!is_dir($uploadPath)){
+        mkdir($uploadPath, 0774, true); //<===== REVIEW!
+    }
+    // move file(s)
+    $files = array();
+    foreach($_FILES['images']['error'] as $key=>$error){
+        if($error == UPLOAD_ERR_OK){
+            $name = $_FILES['images']['name'][$key];
+            move_uploaded_file($_FILES['images']['tmp_name'][$key], $uploadPath.$name);
+            $files[] = $apiKey.'/'.date('Y/m').'/'.$name;
+        }
+        else{
+            $response['status'] = "fail";
+            $response['message'] = "Error ".$error;
+            $response['data'] = $_FILES['images']['name'][$key];
+            echo json_encode($response);
+            return;
+        }
+    }
+
+    $response['data'] = $files;
+    $response['count'] = count($files);
+    echo json_encode($response);
 });
 
 /**
