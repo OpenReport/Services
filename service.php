@@ -107,7 +107,8 @@ $app->post('/login', function() use($app, $response){
     }
     $authData->date_last_accessed = $today;
     $authData->save();
-    $response['data'] = array('apiKey'=>$authData->account->api_key,'username'=>$authData->username,'user_id'=>$authData->id,'roles'=>$authData->roles);
+    $acctInfo = $authData->account;
+    $response['data'] = array('acctName'=>$acctInfo->name,'apiKey'=>$acctInfo->api_key,'username'=>$authData->username,'user_id'=>$authData->id,'roles'=>$authData->roles);
     echo json_encode($response);
 });
 
@@ -115,7 +116,7 @@ $app->post('/login', function() use($app, $response){
 
 
 /**
- * Fetch Report Form
+ * Fetch a Single Report Form
  *
  * get: /form/{api}/{id}
  */
@@ -124,8 +125,8 @@ $app->get('/form/:apiKey/:id', function ($apiKey, $id) use ($app, $response) {
     try {
         $formData = Form::find($id);
         // package the data
-        $response['data'] = $formData->values_for(array('id','identity','meta'));
-        $response['count'] = count($formData->meta['fields']); // return the number of form fields
+        $response['data'] = $formData->values_for(array('id','report_version','title','identity','meta'));
+        $response['count'] = 1; //count($formData->meta['fields']); // return the number of form fields
     }
     catch (\ActiveRecord\RecordNotFound $e) {
         $response['message'] = 'No Records Found';
@@ -142,15 +143,17 @@ $app->get('/form/:apiKey/:id', function ($apiKey, $id) use ($app, $response) {
 
 
 /**
- * Fetch all Public Reporting Forms for apiKey
+ * Fetch all Public and Distributed Reporting Forms for apiKey
  *
  * get: /form/{apiKey}
  *
  */
-$app->get("/form/:apiKey", function ($apiKey) use ($app, $response) {
+$app->get("/forms/:apiKey/:role", function ($apiKey, $role) use ($app, $response) {
 
     try {
-        $formData = Form::find('all', array('conditions'=>array('api_key = ? AND is_published = 1 AND is_public = 1 AND is_deleted = 0', $apiKey)));
+        //$formData = Form::find('all', array('conditions'=>array('api_key = ? AND is_published = 1 AND is_public = 1 AND is_deleted = 0', $apiKey)));
+        $formData = Form::all(array('select'=>'forms.*','joins'=>'LEFT JOIN distributions ON(distributions.form_tag = forms.tags)',
+                                'conditions'=>array('forms.api_key = ? AND (FIND_IN_SET(distributions.user_role, ?) OR forms.is_public = 1) AND forms.is_deleted = 0', $apiKey, $role)));
         // package the data
         $response['data'] = formArrayMap($formData);
         $response['count'] = count($response['data']);
@@ -174,9 +177,9 @@ $app->get("/form/:apiKey", function ($apiKey) use ($app, $response) {
  * get: /assignments/{apiKey}/{roles}
  *
  */
-$app->get("/assignments/:apiKey/:roles", function ($apiKey, $roles) use ($app, $response) {
+$app->get("/assignments/:apiKey/:userId", function ($apiKey, $userId) use ($app, $response) {
 
-    $data = Form::all(array('joins'=>'LEFT JOIN assignments ON(assignments.form_tag = forms.tags)', 'conditions'=>array('forms.api_key = ? AND FIND_IN_SET(assignments.user_role, ?) AND forms.is_published = 1 AND forms.is_deleted = 0', $apiKey, $roles)));
+    $data = Form::all(array('joins'=>'LEFT JOIN assignments ON(assignments.form_id = forms.id)', 'conditions'=>array('forms.api_key = ?  AND assignments.user_id = ? AND forms.is_published = 1 AND forms.is_deleted = 0', $apiKey, $userId)));
     //var_dump($data);
     // package the data
     $response['data'] = formArrayMap($data);
@@ -287,7 +290,7 @@ $app->run();
 
 function formArrayMap($forms){
 
-   return array_map(create_function('$m','return $m->values_for(array(\'id\',\'api_key\',\'title\',\'description\',\'identity\',\'meta\',\'date_modified\',\'report_version\'));'),$forms);
+   return array_map(create_function('$m','return $m->values_for(array(\'id\',\'report_version\',\'api_key\',\'title\',\'identity\',\'meta\'));'),$forms);
 
 }
 
