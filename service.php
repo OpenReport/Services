@@ -40,7 +40,7 @@ date_default_timezone_set('GMT');
 require $_SERVER['DOCUMENT_ROOT'].'system/Slim/Slim.php';
 \Slim\Slim::registerAutoloader();
 $app = new \Slim\Slim();
-$app->add(new \Slim\Middleware\SessionCookie(array('secret' => 'Z54cN9Jf8nE6hqj9V0wAuoaldIQ=')));
+//$app->add(new \Slim\Middleware\SessionCookie(array('secret' => 'Z54cN9Jf8nE6hqj9V0wAuoaldIQ=')));
 require $_SERVER['DOCUMENT_ROOT'].'system/ActiveRecord.php';
 ActiveRecord\Config::initialize(function($cfg) {
     $cfg->set_model_directory($_SERVER['DOCUMENT_ROOT'].'models');
@@ -125,7 +125,7 @@ $app->get('/form/:apiKey/:id', function ($apiKey, $id) use ($app, $response) {
     try {
         $formData = Form::find($id);
         // package the data
-        $response['data'] = $formData->values_for(array('id','report_version','title','identity','meta'));
+        $response['data'] = $formData->values_for(array('id','report_version','title','identity_name','meta'));
         $response['count'] = 1; //count($formData->meta['fields']); // return the number of form fields
     }
     catch (\ActiveRecord\RecordNotFound $e) {
@@ -290,7 +290,7 @@ $app->run();
 
 function formArrayMap($forms){
 
-   return array_map(create_function('$m','return $m->values_for(array(\'id\',\'report_version\',\'api_key\',\'title\',\'identity\',\'meta\'));'),$forms);
+   return array_map(create_function('$m','return $m->values_for(array(\'id\',\'report_version\',\'api_key\',\'title\',\'identity_name\',\'meta\'));'),$forms);
 
 }
 
