@@ -179,10 +179,10 @@ $app->get("/forms/:apiKey/:role", function ($apiKey, $role) use ($app, $response
  */
 $app->get("/assignments/:apiKey/:userId", function ($apiKey, $userId) use ($app, $response) {
 
-    $data = Form::all(array('joins'=>'LEFT JOIN assignments ON(assignments.form_id = forms.id)', 'conditions'=>array('forms.api_key = ?  AND assignments.user_id = ? AND forms.is_published = 1 AND forms.is_deleted = 0', $apiKey, $userId)));
-    //var_dump($data);
+    $data = Form::all(array('select'=>'forms.*, assignments.*', 'joins'=>'LEFT JOIN assignments ON(assignments.form_id = forms.id)', 'conditions'=>array('forms.api_key = ?  AND assignments.user_id = ? AND forms.is_published = 1 AND forms.is_deleted = 0 AND assignments.is_active = 1', $apiKey, $userId)));
+    //var_dump(assignmentArrayMap($data));die;
     // package the data
-    $response['data'] = formArrayMap($data);
+    $response['data'] = assignmentArrayMap($data);
     $response['count'] = count($data);
     // send the data
     echo json_encode($response);
@@ -194,7 +194,7 @@ $app->get("/assignments/:apiKey/:userId", function ($apiKey, $userId) use ($app,
 /**
  * Fetch Recent Report Records (30day Window)
  *
- * GET: /report/{apiKey}/{username}
+ * GET: /report/{apiKey}/{username}[?l=limit[,offset]]
  *
  * Param: apiKey:
  * Param: username:
@@ -205,22 +205,38 @@ $app->get("/assignments/:apiKey/:userId", function ($apiKey, $userId) use ($app,
 $app->get("/reports/:apiKey/:user", function ($apiKey, $user) use ($app, $response) {
 
     $today = new DateTime('GMT');
+    try {
+        $options = array();
+        $options['joins'] = array('JOIN forms ON(forms.id = records.form_id)');
+        $options['select'] = 'forms.title AS title, records.id AS id, records.identity AS identity, records.record_date AS record_date, records.lat AS lat, records.lon AS lon';
+        $options['conditions'] = array('records.api_key = ? AND records.user = ?', $apiKey, $user);
 
-    $join = array('JOIN forms ON(forms.id = records.form_id)');
-    $select = 'forms.title AS title, records.id AS id, records.identity AS identity, records.record_date AS record_date, records.lat AS lat, records.lon AS lon';
-    $conditions = array('records.api_key = ? AND records.user = ?', $apiKey, $user);
-    $records = Record::all(array('joins' => $join, 'select'=>$select, 'conditions' =>$conditions));
+        $recCount = Record::count($options);
 
-    // package the data
-    $data = array_map(create_function('$m','return $m->values_for(array(\'id\',\'title\',\'identity\',\'record_date\',\'lat\',\'lon\'));'),$records);
+        if((int)$recCount > 0){
+            $page = $app->request()->params('l');
+            if($page != null){
+                $limit = split(',',$page);
+                if(count($limit)>1){
+                     $options['offset'] = $limit[1];
+                }
+                $options['limit'] = $limit[0];
+            }
+        }
+        $options['order'] = 'record_date';
+        $records = Record::all($options);
+        // package the data
+        $response['data'] = array_map(create_function('$m','return $m->values_for(array(\'id\',\'title\',\'identity\',\'record_date\',\'lat\',\'lon\'));'),$records);
+        $response['count'] = $recCount;
+    }
+    catch (\ActiveRecord\RecordNotFound $e) {
+        $response['message'] = 'No Records Found';
+        $response['data'] = array();;
+        $response['count'] = 0;
+    }
 
-    //array_map(create_function('$m','return $m->values_for(array(\'id\',\'api_key\',\'title\',\'description\',\'meta\',\'date_modified\',\'report_version\'));'),$forms);
-
-    $response['data'] = $data;
-    $response['count'] = count($data);
     // send the data
     echo json_encode($response);
-
 });
 
 /**
@@ -290,7 +306,7 @@ $app->run();
 
 function formArrayMap($forms){
 
-   return array_map(create_function('$m','return $m->values_for(array(\'id\',\'report_version\',\'api_key\',\'title\',\'identity_name\',\'meta\'));'),$forms);
+   return array_map(create_function('$m','return $m->values_for(array(\'id\',\'report_version\',\'title\',\'identity_name\',\'meta\'));'),$forms);
 
 }
 
@@ -301,7 +317,7 @@ function formArrayMap($forms){
  */
 function assignmentArrayMap($data){
 
-   return array_map(create_function('$m','return $m->values_for(array(\'id\',\'user_id\',\'form_id\',\'date_assigned\',\'is_active\'));'),$data);
+   return array_map(create_function('$m','return $m->values_for(array(\'id\',\'report_version\',\'title\',\'identity_name\',\'meta\',\'schedule\',\'status\',\'date_assigned\',\'date_last_report\',\'date_expires\',\'is_active\'));'),$data);
 
 }
 function getColumns($data){
