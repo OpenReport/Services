@@ -177,9 +177,9 @@ $app->get("/forms/:apiKey/:role", function ($apiKey, $role) use ($app, $response
  * get: /assignments/{apiKey}/{roles}
  *
  */
-$app->get("/assignments/:apiKey/:userId", function ($apiKey, $userId) use ($app, $response) {
+$app->get("/assignments/:apiKey/:user", function ($apiKey, $user) use ($app, $response) {
 
-    $data = Form::all(array('select'=>'forms.*, assignments.*', 'joins'=>'LEFT JOIN assignments ON(assignments.form_id = forms.id)', 'conditions'=>array('forms.api_key = ?  AND assignments.user_id = ? AND forms.is_published = 1 AND forms.is_deleted = 0 AND assignments.is_active = 1', $apiKey, $userId)));
+    $data = Form::all(array('select'=>'forms.*, assignments.*', 'joins'=>'LEFT JOIN assignments ON(assignments.form_id = forms.id)', 'conditions'=>array('forms.api_key = ?  AND assignments.user = ? AND forms.is_published = 1 AND forms.is_deleted = 0 AND assignments.is_active = 1', $apiKey, $user)));
     //var_dump(assignmentArrayMap($data));die;
     // package the data
     $response['data'] = assignmentArrayMap($data);
@@ -223,7 +223,7 @@ $app->get("/reports/:apiKey/:user", function ($apiKey, $user) use ($app, $respon
                 $options['limit'] = $limit[0];
             }
         }
-        $options['order'] = 'record_date';
+        $options['order'] = 'record_date desc';
         $records = Record::all($options);
         // package the data
         $response['data'] = array_map(create_function('$m','return $m->values_for(array(\'id\',\'title\',\'identity\',\'record_date\',\'lat\',\'lon\'));'),$records);
@@ -285,6 +285,18 @@ $app->post('/record/', function () use ($app, $response) {
         $record->lon = $request->lon;
         $record->lat = $request->lat;
         $record->save();
+        // check for assigned forms and update
+        $records = Assigment::all(array('conditions'=>array(array('form_id = ? AND user = ? AND NOW() <= date_expires AND status = \'open\'', $record->form_id,$record->user,$record->identity))));
+        // basic logic - needs improvement
+        foreach($records as $assignment){
+           $assignment->last_date_report = $request->record_date;
+           if($assignment->date_expires < $request->record_date){
+            $assignment->status = 'closed';
+           }
+           $assignment.save();
+        }
+
+
     //}
     // package the data
     $response['data'] = json_encode($request->meta);
@@ -317,7 +329,7 @@ function formArrayMap($forms){
  */
 function assignmentArrayMap($data){
 
-   return array_map(create_function('$m','return $m->values_for(array(\'id\',\'report_version\',\'title\',\'identity_name\',\'meta\',\'schedule\',\'status\',\'date_assigned\',\'date_last_report\',\'date_expires\',\'is_active\'));'),$data);
+   return array_map(create_function('$m','return $m->values_for(array(\'form_id\',\'report_version\',\'title\',\'identity_name\',\'identity\',\'schedule\',\'status\',\'date_assigned\',\'date_last_report\',\'date_expires\',\'is_active\'));'),$data);
 
 }
 function getColumns($data){
