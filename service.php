@@ -286,14 +286,14 @@ $app->post('/record/', function () use ($app, $response) {
         $record->lat = $request->lat;
         $record->save();
         // check for assigned forms and update
-        $records = Assigment::all(array('conditions'=>array(array('form_id = ? AND user = ? AND NOW() <= date_expires AND status = \'open\'', $record->form_id,$record->user,$record->identity))));
+        $assigned = Assignment::all(array('conditions'=>array('form_id = ? AND user = ? AND DATE(NOW()) <= date_expires AND status = \'open\'', $record->form_id,$record->user)));
         // basic logic - needs improvement
-        foreach($records as $assignment){
-           $assignment->last_date_report = $request->record_date;
+        foreach($assigned as $assignment){
+           $assignment->date_last_reported = $request->record_date;
            if($assignment->date_expires < $request->record_date){
             $assignment->status = 'closed';
            }
-           $assignment.save();
+           $assignment->save();
         }
 
 
@@ -329,7 +329,7 @@ function formArrayMap($forms){
  */
 function assignmentArrayMap($data){
 
-   return array_map(create_function('$m','return $m->values_for(array(\'form_id\',\'report_version\',\'title\',\'identity_name\',\'identity\',\'schedule\',\'status\',\'date_assigned\',\'date_last_report\',\'date_expires\',\'is_active\'));'),$data);
+   return array_map(create_function('$m','return $m->values_for(array(\'form_id\',\'report_version\',\'title\',\'identity_name\',\'identity\',\'schedule\',\'status\',\'date_assigned\',\'date_last_reported\',\'date_expires\',\'is_active\'));'),$data);
 
 }
 function getColumns($data){
