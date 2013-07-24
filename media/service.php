@@ -80,15 +80,60 @@ $app->map('/upload/:apiKey', function() {
  * GET:/media/
  *
  */
-$app->get('/', function () use($app, $response)  {
+$app->get('/:apiKey', function ($apiKey) use($app, $response)  {
 
+    $f = $_SERVER['DOCUMENT_ROOT'].'media/data/'; // .$apiKey;
+
+    $response['data'] = formatBytes(getDirectorySize($f));
     $response['message'] = 'OpenReport v1.0';
     echo json_encode($response);
 
 });
 
+function getDirectorySize($directory)
+{
+    $dirSize=0;
 
+    if(!$dh=opendir($directory))
+    {
+        return false;
+    }
 
+    while($file = readdir($dh))
+    {
+        if($file == "." || $file == "..")
+        {
+            continue;
+        }
+
+        if(is_file($directory."/".$file))
+        {
+            $dirSize += filesize($directory."/".$file);
+        }
+
+        if(is_dir($directory."/".$file))
+        {
+            $dirSize += getDirectorySize($directory."/".$file);
+        }
+    }
+
+    closedir($dh);
+
+    return $dirSize;
+}
+function formatBytes($bytes, $precision = 2) {
+    $units = array('B', 'KB', 'MB', 'GB', 'TB');
+
+    $bytes = max($bytes, 0);
+    $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
+    $pow = min($pow, count($units) - 1);
+
+    // Uncomment one of the following alternatives
+    //$bytes /= pow(1024, $pow);
+    $bytes /= (1 << (10 * $pow));
+
+    return round($bytes, $precision) . ' ' . $units[$pow];
+}
 /**
  *
  *
