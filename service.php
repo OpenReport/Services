@@ -295,8 +295,19 @@ $app->post('/record/', function () use ($app, $response) {
            }
            $assignment->save();
         }
+        // add identity if it does not exists.
+        $count = Identity::count(array('conditions'=>array('api_key = ? AND identity_name = ? AND identity = ?', $request->api_key, $request->identity_name, $request->identity)));
+        if($request->api_key == $request->api_key && $count == 0){
 
-
+            // create new Identity
+            $identity = new Identity();
+            $identity->api_key = $request->api_key;
+            //$identity->label = $request->label;
+            $identity->identity_name = $request->identity_name;
+            $identity->identity = $request->identity;
+            $identity->is_active = true;
+            $identity->save();
+        }
     //}
     // package the data
     $response['data'] = json_encode($request->meta);
