@@ -54,6 +54,24 @@ $app = new \Slim\Slim();
 \Slim\Route::setDefaultConditions(array(
     'apiKey' => '[a-zA-Z0-9]{32}'
 ));
+// Standardize response
+$response = array('status'=>'ok', 'message'=>'', 'count'=>0, 'data'=>array());
+
+/**
+ * Authenticate all requests
+ *
+ */
+//$app->hook('slim.before.dispatch', function () use ($app) {
+//
+//    $params = $app->router()->getCurrentRoute()->getParams();
+//    // Provide a better validation here...
+//    if ($app->request()->params('apiKey') !== "65b109869265518f7801f2ce3ba55402") {
+//
+//        echo var_dump($params->apiKey); die;
+//
+//        $app->halt(403, "Invalid or Missing Key");
+//    }
+//});
 
 /**
  * Set the default content type
@@ -67,8 +85,6 @@ $app->hook('slim.after.router', function() use ($app) {
 
 });
 
-// Standardize response
-$response = array('status'=>'ok', 'message'=>'', 'count'=>0, 'data'=>array());
 
 
 // return HTTP 200 for HTTP OPTIONS requests
@@ -143,7 +159,7 @@ $app->get('/form/:apiKey/:id', function ($apiKey, $id) use ($app, $response) {
 
 
 /**
- * Fetch all Public and Distributed Reporting Forms for apiKey
+ * Fetch all Public Distributed Reporting Forms for apiKey
  *
  * get: /form/{apiKey}
  *
@@ -153,7 +169,7 @@ $app->get("/forms/:apiKey/:role", function ($apiKey, $role) use ($app, $response
     try {
         //$formData = Form::find('all', array('conditions'=>array('api_key = ? AND is_published = 1 AND is_public = 1 AND is_deleted = 0', $apiKey)));
         $formData = Form::all(array('select'=>'forms.*','joins'=>'LEFT JOIN distributions ON(distributions.form_tag = forms.tags)',
-                                'conditions'=>array('forms.api_key = ? AND (FIND_IN_SET(distributions.user_role, ?) OR forms.is_public = 1) AND forms.is_deleted = 0', $apiKey, $role)));
+                                'conditions'=>array('forms.api_key = ? AND (FIND_IN_SET(distributions.user_role, ?) AND forms.is_public = 1) AND forms.is_deleted = 0', $apiKey, $role)));
         // package the data
         $response['data'] = formArrayMap($formData);
         $response['count'] = count($response['data']);
@@ -174,18 +190,33 @@ $app->get("/forms/:apiKey/:role", function ($apiKey, $role) use ($app, $response
 /**
  * Fetch all reporting assignmets records for userId
  *
- * get: /assignments/{apiKey}/{roles}
+ * get: /assignments/{apiKey}/{user}
  *
  */
 $app->get("/assignments/:apiKey/:user", function ($apiKey, $user) use ($app, $response) {
 
-    $data = Form::all(array('select'=>'forms.*, assignments.*', 'joins'=>'LEFT JOIN assignments ON(assignments.form_id = forms.id)', 'conditions'=>array('forms.api_key = ?  AND assignments.user = ? AND forms.is_published = 1 AND forms.is_deleted = 0 AND assignments.is_active = 1', $apiKey, $user)));
-    //var_dump(assignmentArrayMap($data));die;
-    // package the data
-    $response['data'] = assignmentArrayMap($data);
-    $response['count'] = count($data);
+    try {
+        $options = array();
+        $options['joins'] = array('LEFT JOIN forms ON(assignments.form_id = forms.id)','LEFT JOIN users ON(assignments.user = users.email)');
+        $options['select'] = 'assignments.*, forms.identity_name AS identity_name, forms.report_version AS report_version, forms.title AS title';
+        $options['conditions'] = array('assignments.api_key = ? AND assignments.user = ? AND assignments.is_active = 1', $apiKey,$user);
+        $options['order'] = 'date_next_report ASC';
+        $recCount = Assignment::count($options);
+
+        $data = Assignment::all($options);
+        // package the data
+        $response['data'] = assignmentArrayMap($data);
+        $response['count'] = $recCount;
+    }
+    catch (\ActiveRecord\RecordNotFound $e) {
+        $response['message'] = 'No Records Found';
+        $response['data'] = array();;
+        $response['count'] = 0;
+    }
+
     // send the data
     echo json_encode($response);
+
 
 });
 
@@ -286,19 +317,44 @@ $app->post('/record/', function () use ($app, $response) {
         $record->lat = $request->lat;
         $record->save();
         // check for assigned forms and update
-        $assigned = Assignment::all(array('conditions'=>array('form_id = ? AND user = ? AND DATE(NOW()) <= date_expires AND status = \'open\'', $record->form_id,$record->user)));
-        // basic logic - needs improvement
-        foreach($assigned as $assignment){
+        $options = array();
+        if($request->identity_name == ''){
+            $options['conditions'] = array('form_id = ? AND user = ? AND DATE(NOW()) <= date_expires AND status = \'open\'', $record->form_id,$record->user);
+        }
+        else{
+            $options['conditions'] = array('form_id = ? AND user = ? AND identity = ? AND DATE(NOW()) <= date_expires AND status = \'open\'', $record->form_id,$record->user,$request->identity);
+        }
+        $assignment = Assignment::first($options);
+        if($assignment != null){
            $assignment->date_last_reported = $request->record_date;
-           if($assignment->date_expires < $request->record_date){
+           $assignment->report_count++;
+           if($assignment->report_count >= $assignment->repeat_schedule){
             $assignment->status = 'closed';
+            $assignment->is_active = 0;
+           }
+           else{
+            // set next due date
+            // next date = last_date plus daily/weekly/monthly by 1
+            $assignment->date_next_report = $assignment->date_last_reported;
+            switch($assignment->schedule){
+                case 'daily';
+                    $interval = 'P1D';
+                    break;
+                 case 'weekly';
+                    $interval = 'P7D';
+                    break;
+                case 'monthly';
+                    $interval = 'P1M';
+                    break;
+
+            }
+            $assignment->date_next_report->add(new DateInterval($interval));
            }
            $assignment->save();
         }
         // add identity if it does not exists.
         $count = Identity::count(array('conditions'=>array('api_key = ? AND identity_name = ? AND identity = ?', $request->api_key, $request->identity_name, $request->identity)));
         if($request->api_key == $request->api_key && $count == 0){
-
             // create new Identity
             $identity = new Identity();
             $identity->api_key = $request->api_key;
@@ -316,6 +372,31 @@ $app->post('/record/', function () use ($app, $response) {
     // send the data
     echo json_encode($response);
 });
+
+/**
+ * Fetch all Identity records for identity_name
+ *
+ * GET: /identities/{apiKey}/{name}
+ *
+ */
+$app->get("/identities/:apiKey/:name", function ($apiKey, $name) use ($app, $response) {
+
+   try{
+      $identities = Identity::find('all', array('conditions'=>array('api_key = ? AND identity_name = ? AND is_active = 1', $apiKey, $name)));
+      // package the data
+      $response['data'] = array_map(create_function('$m','return $m->values_for(array(\'identity\',\'description\'));'),$identities);
+      $response['count'] = count($response['data']);
+    }
+    catch (\ActiveRecord\RecordNotFound $e) {
+      $response['message'] = 'No Records Found';
+      $response['data'] = array();;
+      $response['count'] = 0;
+    }
+    // send the data
+    echo json_encode($response);
+
+});
+
 /**
  * Run the Slim application
  *
@@ -340,7 +421,7 @@ function formArrayMap($forms){
  */
 function assignmentArrayMap($data){
 
-   return array_map(create_function('$m','return $m->values_for(array(\'form_id\',\'report_version\',\'title\',\'identity_name\',\'identity\',\'schedule\',\'status\',\'date_assigned\',\'date_last_reported\',\'date_expires\',\'is_active\'));'),$data);
+   return array_map(create_function('$m','return $m->values_for(array(\'form_id\',\'report_version\',\'title\',\'identity_name\',\'identity\',\'schedule\',\'status\',\'date_assigned\',\'date_next_report\',\'date_expires\',\'is_active\'));'),$data);
 
 }
 function getColumns($data){
